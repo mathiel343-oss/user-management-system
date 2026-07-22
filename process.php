@@ -1,48 +1,81 @@
 <?php
 include 'db.php';
 
-$action = $_REQUEST['action'] ?? '';
+if (isset($_GET['action']) && $_GET['action'] == 'fetch') {
+    $sql = "SELECT * FROM users ORDER BY id DESC";
+    $result = $conn->query($sql);
 
-// 1. إضافة البيانات الكاملة
-if ($action === 'add') {
-    $name     = $_POST['name'] ?? '';
-    $age      = $_POST['age'] ?? '';
-    $email    = $_POST['email'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    if (!empty($name) && !empty($age) && !empty($email) && !empty($password)) {
-        // تشفير كلمة المرور للحفاظ على الأمان
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-        
-        $stmt = $conn->prepare("INSERT INTO users (name, age, email, password, status) VALUES (?, ?, ?, ?, 0)");
-        $stmt->bind_param("siss", $name, $age, $email, $hashed_password);
-        $stmt->execute();
+    if ($result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+            $statusText = $row['status'] == 1 ? '<span class="status-active">1 (Active)</span>' : '<span class="status-inactive">0 (Inactive)</span>';
+            echo "<tr>
+                    <td>{$row['id']}</td>
+                    <td>{$row['name']}</td>
+                    <td>{$row['age']}</td>
+                    <td>{$row['email']}</td>
+                    <td>******</td>
+                    <td>{$statusText}</td>
+                    <td><button class='toggle-btn' onclick='toggleStatus({$row['id']})'>Toggle</button></td>
+                  </tr>";
+        }
+    } else {
+        echo "<tr><td colspan='7'>No records found</td></tr>";
     }
+    exit;
 }
 
-// 2. تبديل الحالة (Toggle Status)
-if ($action === 'toggle') {
-    $id = $_POST['id'] ?? 0;
-    if ($id > 0) {
-        $stmt = $conn->prepare("UPDATE users SET status = 1 - status WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
+if ((isset($_GET['action']) && $_GET['action'] == 'add') || isset($_POST['signup'])) {
+    $name     = trim($_POST['name']);
+    $age      = trim($_POST['age']);
+    $email    = trim($_POST['email']);
+    $password = trim($_POST['password']);
+
+    $sql = "INSERT INTO users (name, age, email, password, status) VALUES ('$name', '$age', '$email', '$password', 0)";
+
+    if ($conn->query($sql) === TRUE) {
+        if (isset($_POST['signup'])) {
+            header("Location: select.php");
+        } else {
+            echo "Success";
+        }
+    } else {
+        echo "Error: " . $conn->error;
     }
+    exit;
 }
 
-// 3. عرض البيانات في الجدول (تلقائياً وبدون تحديث صفحة)
-if ($action === 'fetch' || $action === 'add' || $action === 'toggle') {
-    $result = $conn->query("SELECT * FROM users ORDER BY id DESC");
-    while ($row = $result->fetch_assoc()) {
-        echo "<tr>";
-        echo "<td>" . $row['id'] . "</td>";
-        echo "<td>" . htmlspecialchars($row['name']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['age']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['email']) . "</td>";
-        echo "<td>******</td>"; // إخفاء الباسورد للعرض الآمن
-        echo "<td>" . ($row['status'] == 1 ? '<span class="status-active">1 (نشط)</span>' : '<span class="status-inactive">0 (غير نشط)</span>') . "</td>";
-        echo "<td><button class='toggle-btn' onclick='toggleStatus(" . $row['id'] . ")'>Toggle</button></td>";
-        echo "</tr>";
+if ((isset($_GET['action']) && $_GET['action'] == 'login') || isset($_POST['signin'])) {
+    $name     = trim($_POST['name']);
+    $password = trim($_POST['password']);
+
+    $sql = "SELECT * FROM users WHERE TRIM(name) = '$name' AND password = '$password'";
+    $result = $conn->query($sql);
+
+    if ($result && $result->num_rows > 0) {
+        if (isset($_POST['signin'])) {
+            header("Location: select.php");
+        } else {
+            echo "Login Successful! Welcome back.";
+        }
+    } else {
+        if (isset($_POST['signin'])) {
+            echo "<script>alert('User not found or invalid credentials!'); window.location.href='index.php';</script>";
+        } else {
+            echo "User not found or invalid credentials!";
+        }
     }
+    exit;
+}
+
+if (isset($_GET['action']) && $_GET['action'] == 'toggle') {
+    $id = $_POST['id'];
+
+    $sql = "UPDATE users SET status = 1 - status WHERE id = '$id'";
+    if ($conn->query($sql) === TRUE) {
+        echo "Status Updated";
+    } else {
+        echo "Error: " . $conn->error;
+    }
+    exit;
 }
 ?>
